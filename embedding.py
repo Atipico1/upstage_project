@@ -19,17 +19,15 @@ def prepare_embed():
         )
         for description, index, title, author, year in zip(art_descriptions, indexs, titles, authors, years)
     ]
-    # try:
-    #     vectorstore = Chroma(persist_directory="./chroma_db",
-    #             collection_name="art_index",
-    #             embedding_function=UpstageEmbeddings(model="solar-embedding-1-large"))
-    # except:
-    vectorstore = Chroma.from_documents(
-        documents=art_full_docs,
-        embedding=UpstageEmbeddings(model="solar-embedding-1-large"),
-        collection_name="art_index",
-        persist_directory="./chroma_db",
-    )
+    vectorstore = Chroma(persist_directory="./chroma_db",
+                collection_name="art_index",
+                embedding_function=UpstageEmbeddings(model="solar-embedding-1-large"))
+    # vectorstore = Chroma.from_documents(
+    #     documents=art_full_docs,
+    #     embedding=UpstageEmbeddings(model="solar-embedding-1-large"),
+    #     collection_name="art_index",
+    #     persist_directory="./chroma_db",
+    # )
 
     retriever_full = vectorstore.as_retriever()
     return retriever_full
