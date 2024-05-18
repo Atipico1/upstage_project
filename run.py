@@ -21,7 +21,6 @@ def call_tool_func(tool_call):
     selected_tool = globals()[tool_name]
     return selected_tool.invoke(tool_call["args"]), tool_name
 
-
 # chain = prompt_template | llm | StrOutputParser()
 df= pd.read_csv('arts02.csv')
 
@@ -35,6 +34,7 @@ def tool_rag(question, history):
         context, tool_name = tool_output
         context += str(context).strip()
         tool_name = str(tool_name)
+    print(tool_name)
     if tool_name == "similar_art_search":
         prompt = f"""
             당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
@@ -46,7 +46,18 @@ def tool_rag(question, history):
             """
         return prompt
     elif tool_name == "chat_with_explain":
-        return None
+        prompt = f"""
+당신은 미술 작품에 대한 감상을 듣고 평가해야 합니다. 당신은 주관적인 감상을 경청하고 공감해야합니다. 또한 제공된 평가 기준에 따라 나의 감상을 분석하고 구체적인 피드백을 제공합니다. 
+## 평가 기준:
+1. 진솔성과 솔직함: 자신의 감정과 생각을 솔직하게 표현하는가?
+2. 감정 표현의 풍부함: 다양한 감정을 풍부하게 표현하는가?
+3. 개인적인 경험과의 연결: 작품을 자신의 경험과 연결하여 감상을 풀어내는가?
+4. 독창적인 관점: 작품에 대한 독창적인 시각과 해석을 제시하는가?
+5. 공감과 소통: 자신의 감상을 통해 다른 사람의 공감을 이끌어내는가?. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
+---
+나의 감상: {question}
+"""
+        return prompt
     elif tool_name == "normal_chat":
         return None
     elif tool_name == "wiki_search":
@@ -87,7 +98,8 @@ def chat(message, history, artwork_number):
 
 def move_to_chatbot(artwork_number):
     if artwork_number:  # 작품 번호가 입력되었을 때만 이동
-        return gr.update(visible=False), gr.update(visible=True), artwork_number
+        image_path = f"data/{artwork_number}.jpg"
+        return gr.update(visible=False), gr.update(visible=True), image_path
     else:
         return gr.update(visible=True), gr.update(visible=False), None
 
@@ -120,13 +132,15 @@ with gr.Blocks() as demo:
             chatbot.chatbot.height = 300
             back_btn = gr.Button("Back")
             
+        # with gr.Column():
+        #     image = gr.Image(f"data/{artwork_input.value}.jpg", label="Example Image")
         with gr.Column():
-            image = gr.Image(f"data/{artwork_input.value}.jpg", label="Example Image")
+            image = gr.Image(None, label="Example Image")
 
     submit_btn.click(
         fn=move_to_chatbot, 
         inputs=artwork_input, 
-        outputs=[input_page, chatbot_page, gr.State()]
+        outputs=[input_page, chatbot_page, image]
     )
 
     back_btn.click(
