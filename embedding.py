@@ -26,6 +26,6 @@ def prepare_embed():
         embedding=UpstageEmbeddings(model="solar-embedding-1-large"),
         collection_name="full_art_index",
     )
-
+    
     retriever_full = vectorstore.as_retriever()
     return retriever_full

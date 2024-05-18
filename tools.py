@@ -54,4 +54,4 @@ def wiki_search(query: str) -> str:
     if wiki_page.exists() == False:
         return None
     else:
-        return summary
+        return summary[:2000]
