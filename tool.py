@@ -17,3 +17,23 @@ def chat_with_explain(query: str) -> str:
     기준 : {NORM}\n
     감상 : {USER}\n
     """
+# wikipedia search
+
+import wikipediaapi
+
+def wiki_search(query: str) -> str:
+    """위키피디아에서 관련된 키워드 관련 페이지를 불러옵니다.
+    질문은 아트와 전시회 주제를 다루고 있습니다.
+    """
+    wiki = wikipediaapi.Wikipedia(
+        language='ko',
+        extract_format=wikipediaapi.ExtractFormat.WIKI,
+        user_agent='my-custom-user-agent')
+    
+    wiki_page = wiki.page(query=query)
+
+    if wiki_page.exists() == False:
+          print("정보를 찾을 수 없습니다")
+    
+    else:
+         return wiki.page(query=query)
