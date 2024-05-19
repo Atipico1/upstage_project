@@ -1,4 +1,10 @@
 import gradio as gr
+import pandas as pd
+import embedding
+import json
+import os
+import random
+
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema import AIMessage, HumanMessage
@@ -6,12 +12,35 @@ from langchain_upstage import ChatUpstage
 from tools import similar_art_search, chat_with_explain, normal_chat, wiki_search
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-import pandas as pd
-from embedding import prepare_embed
 
 llm = ChatUpstage(streaming=True)
 tools = [similar_art_search, chat_with_explain, normal_chat, wiki_search]
 llm_with_tools = llm.bind_tools(tools)
+
+df = pd.read_csv("data/arts02.csv")
+searching = embedding.Search(df)
+now_art = {}
+
+def search_art(query):
+    results = searching.search(query, searching.retriever_full)
+    search_list = []
+    serarch_dict = {}
+    for result in results:
+        element = result.metadata["author"] +": " + result.metadata["title"]
+        search_list.append(element)
+        serarch_dict[element] = result.metadata
+    # print(serarch_dict)
+    return gr.update(choices=search_list, value=None), json.dumps(serarch_dict, ensure_ascii=False)
+
+def dropdown_change(item, search_dict):
+    if item:
+        search_dict = json.loads(search_dict)
+        images_path = os.path.join("data", str(search_dict[item]['index']) + ".jpg") 
+        global now_art
+        now_art = search_dict[item]
+        return images_path
+    else:
+        return None
 
 def call_tool_func(tool_call):
     tool_name = tool_call["name"].lower()
@@ -20,9 +49,6 @@ def call_tool_func(tool_call):
         return None
     selected_tool = globals()[tool_name]
     return selected_tool.invoke(tool_call["args"]), tool_name
-
-# chain = prompt_template | llm | StrOutputParser()
-df= pd.read_csv('arts02.csv')
 
 def tool_rag(question, history):
     tool_calls = llm_with_tools.invoke(question).tool_calls
@@ -36,6 +62,11 @@ def tool_rag(question, history):
         tool_name = str(tool_name)
     print(tool_name)
     if tool_name == "similar_art_search":
+        # 비슷한 작품 검색
+        docs = searching.search(f"{question}\n" + now_art['art_description'], searching.retriever_art)
+        ran = random.randint(1, len(docs)-1)
+        context = df[df["번호"]==docs[ran].metadata['index']]['작품 설명'].values[0]
+        
         prompt = f"""
             당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
             당신은 유저가 요청한 비슷한 작품에 대해서 설명해주어야 합니다. 
@@ -64,6 +95,7 @@ def tool_rag(question, history):
             당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
             당신은 유저가 요청한 작품에 대해서 위키피디아에서 관련된 정보를 찾아서 알려주어야 합니다.
             아래는 질문과 관련된 검색결과입니다. 검색 결과를 기반으로 친절하게 설명해주세요.
+            만약 위키피디아에서 정보를 가져오지 못했을 경우에는 검색에 실패하였다고 알려주세요.
             ---
             질문: {question}
             ---
@@ -71,8 +103,12 @@ def tool_rag(question, history):
             """
         return prompt
 
-def chat(message, history, artwork_number):
-    description = df[df["번호"]==int(artwork_number)]["작품 설명"].values[0]
+def chat(message, history):
+    global now_art
+    description = df[df["번호"]==now_art['index']]["작품 설명"].values[0]
+    now_art['full_description'] = description
+    now_art['art_description'] = df[df["번호"]==now_art['index']]["art_description"].values[0]
+    
     chat_with_history_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", f"당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다. 모든 답변을 한국어로 해야합니다. 해당 작품에 대한 정보는 다음과 같습니다.\n\n작품 정보 : {description}"),
@@ -95,26 +131,15 @@ def chat(message, history, artwork_number):
         assistant += gen
         yield assistant
 
-def move_to_chatbot(artwork_number):
-    if artwork_number:  # 작품 번호가 입력되었을 때만 이동
-        image_path = f"data/{artwork_number}.jpg"
-        return gr.update(visible=False), gr.update(visible=True), image_path
-    else:
-        return gr.update(visible=True), gr.update(visible=False), None
 
-def go_back():
-    return gr.update(visible=True), gr.update(visible=False)
-
-def update_chatbot_title(artwork_number):
-    return f"Solar Chatbot - Artwork Number: {artwork_number}"
-
-with gr.Blocks() as demo:
-    # 첫 번째 페이지: 작품 번호 입력
-    with gr.Column(visible=True) as input_page:
-        artwork_input = gr.Textbox(label="Enter Artwork Number")
-        submit_btn = gr.Button("Submit")
-    # 두 번째 페이지: 챗봇 UI
-    with gr.Row(visible=False) as chatbot_page:
+with gr.Blocks(title="AI Docent Chatbot") as demo:
+    gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>Search Art</h1>")
+    search_art_tb = gr.Textbox(label="Input query you want to search")
+    search_dropdown = gr.Dropdown([], value='', label="Search Result", info="Art search results will be added here", interactive=True, filterable=False)
+    search_btn = gr.Button("Search")
+    search_to_meta = gr.Label(visible=False)
+    
+    with gr.Row(visible=True) as chatbot_page:
         with gr.Column():
             state = gr.State()
             chatbot = gr.ChatInterface(
@@ -126,27 +151,19 @@ with gr.Blocks() as demo:
                 # ],
                 title="Solar Chatbot",
                 description="Upstage Solar Chatbot",
-                additional_inputs=artwork_input
+                # additional_inputs=[search_dropdown, search_to_meta]
             )
             chatbot.chatbot.height = 300
-            back_btn = gr.Button("Back")
-            
-        # with gr.Column():
-        #     image = gr.Image(f"data/{artwork_input.value}.jpg", label="Example Image")
         with gr.Column():
-            image = gr.Image(None, label="Example Image")
-
-    submit_btn.click(
-        fn=move_to_chatbot, 
-        inputs=artwork_input, 
-        outputs=[input_page, chatbot_page, image]
+            art_image = gr.Image(value=None, label="Art Image")
+    
+    
+    search_btn.click(
+        fn=search_art, 
+        inputs=search_art_tb, 
+        outputs=[search_dropdown, search_to_meta]
     )
+    
+    search_dropdown.change(fn=dropdown_change, inputs=[search_dropdown, search_to_meta], outputs=art_image)
 
-    back_btn.click(
-        fn=go_back,
-        inputs=[], 
-        outputs=[input_page, chatbot_page, gr.State()]
-    )
-
-# 인터페이스 실행
 demo.launch()

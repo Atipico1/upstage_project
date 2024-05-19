@@ -1,26 +1,16 @@
 from langchain_core.tools import tool
-from embedding import prepare_embed
 import wikipediaapi
 from langchain_upstage import ChatUpstage
 
-
-retriever = prepare_embed()
-
 @tool
 def similar_art_search(query: str) -> str:
-    """비슷한 작품을 검색해서 추천해줍니다.
+    """사용자와의 대화 기록을보고 사용자가 비슷한 작품의 추천을 원할시 호출합니다.
     """
-    result = retriever.invoke(query)[0].page_content
-    return result
+    return "CALL SIMILAR ART"
 
 @tool
 def chat_with_explain(query: str) -> str:
     """사용자의 작품에 대한 감상에 대해서 평가해줍니다. 사용자가 구체적으로 감상, 느낀 점에 대해 얘기를 하고 있을 때만 사용합니다.
-    """
-    prompt = """아래는 미술 작품에 대한 감상입니다. 아래 기준에 따라서 감상에 대한 의견을 제시해주세요.
-    친구와 대화하듯이 자연스럽게 대화를 이어 나가야하고, 감상에 대한 평가는 기준에 따라서 해야합니다.
-    기준 : {NORM}\n
-    감상 : {USER}\n
     """
     return "CALL EXPLAIN"
 
@@ -55,6 +45,6 @@ def wiki_search(query: str) -> str:
     wiki_page = wiki.page(title=output)
     summary = wiki_page.summary
     if wiki_page.exists() == False:
-        return None
+        return "위키피디아 검색에 실패하였습니다."
     else:
         return summary[:2000]
