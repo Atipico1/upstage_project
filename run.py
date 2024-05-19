@@ -68,13 +68,18 @@ def tool_rag(question, history):
         context = df[df["번호"]==docs[ran].metadata['index']]['작품 설명'].values[0]
         
         prompt = f"""
-            당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
-            당신은 유저가 요청한 비슷한 작품에 대해서 설명해주어야 합니다. 
-            ---
-            질문: {question}
-            ---
-            비슷한 작품: {context}
-            """
+        ## Role: 마술 작품 추천 전문가
+        
+        ## Instruction
+        - 사용자의 질문에 맞게 비슷한 작품을 소개해줘.
+        - 제시된 "비슷한 작품"을 기반으로 작품을 추천해줘.
+        - 이전 대화기록을 기반으로 추천하는 이유를 설명해줘.
+        ##
+        질문: {question}
+        
+        ##
+        비슷한 작품: {context}
+        """
         return prompt
     elif tool_name == "chat_with_explain":
         prompt = f"""
@@ -134,7 +139,7 @@ def chat(message, history):
 
 with gr.Blocks(title="AI Docent Chatbot") as demo:
     gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>Search Art</h1>")
-    search_art_tb = gr.Textbox(label="Input query you want to search")
+    search_art_tb = gr.Textbox(label="Query", info="Input query for art searching")
     search_dropdown = gr.Dropdown([], value='', label="Search Result", info="Art search results will be added here", interactive=True, filterable=False)
     search_btn = gr.Button("Search")
     search_to_meta = gr.Label(visible=False)
