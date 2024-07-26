@@ -4,6 +4,8 @@ import embedding
 import json
 import os
 import random
+from dotenv import load_dotenv
+import os
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -13,6 +15,7 @@ from tools import similar_art_search, chat_with_explain, normal_chat, wiki_searc
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
+load_dotenv()
 llm = ChatUpstage(streaming=True)
 tools = [similar_art_search, chat_with_explain, normal_chat, wiki_search]
 llm_with_tools = llm.bind_tools(tools)
