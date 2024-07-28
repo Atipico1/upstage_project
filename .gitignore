@@ -10,3 +10,5 @@ data/*
 
 my_test_project/
 test.ipynb
+crawling.ipynb
+test.py

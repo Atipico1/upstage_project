@@ -5,7 +5,6 @@ import json
 import os
 import random
 from dotenv import load_dotenv
-import os
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
@@ -20,9 +19,16 @@ llm = ChatUpstage(streaming=True)
 tools = [similar_art_search, chat_with_explain, normal_chat, wiki_search]
 llm_with_tools = llm.bind_tools(tools)
 
-df = pd.read_csv("data/arts02.csv")
-searching = embedding.Search(df)
+df = pd.read_csv("data/arts_all02.csv")
+ehb_df = pd.read_csv("data/exhibitions.csv")
+
+searching = embedding.Search(df, ehb_df)
 now_art = {}
+
+ehb_data = ehb_df.to_json(force_ascii=False, orient="records")
+ehb_data = json.loads(ehb_data)
+ehb_image_path = "data/ehb_images"
+
 
 def search_art(query):
     results = searching.search(query, searching.retriever_full)
@@ -35,10 +41,21 @@ def search_art(query):
     # print(serarch_dict)
     return gr.update(choices=search_list, value=None), json.dumps(serarch_dict, ensure_ascii=False)
 
+def search_ehb(query):
+    results = searching.bm_search(query, searching.retriever_ehb)
+    # search_list = []
+    # serarch_dict = {}
+    # for result in results:
+    #     element = result.metadata["author"] +": " + result.metadata["title"]
+    #     search_list.append(element)
+    #     serarch_dict[element] = result.metadata
+    print(results)
+    return results
+
 def dropdown_change(item, search_dict):
     if item:
         search_dict = json.loads(search_dict)
-        images_path = os.path.join("data", str(search_dict[item]['index']) + ".jpg") 
+        images_path = os.path.join("data/art_images", str(search_dict[item]['index']) + ".jpg") 
         global now_art
         now_art = search_dict[item]
         return images_path
@@ -139,39 +156,96 @@ def chat(message, history):
         assistant += gen
         yield assistant
 
+def ehb_search(query, *images):
+    result = searching.bm_search(query, searching.retriever_ehb)
+    ehb_list = []
+    for i in range(len(images)):
+        if i < len(result):
+            img_path = os.path.join(ehb_image_path, str(result[i].metadata['index'])+".jpg")
+            ehb_image = gr.Image(img_path, label=result[i].metadata["title"], width=250, height=250, show_label=False, show_download_button=False, container=False)
+            ehb_title = gr.Markdown(f"<div class='ehb_label'>{result[i].metadata['title']}</div>")
+            ehb_list.append(ehb_image)
+            ehb_list.append(ehb_title)
+        else:
+            ehb_list.append(gr.update(visible=False))
+            ehb_list.append(gr.update(visible=False))
 
-with gr.Blocks(title="AI Docent Chatbot") as demo:
-    gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>Search Art</h1>")
-    search_art_tb = gr.Textbox(label="Query", info="Input query for art searching")
-    search_dropdown = gr.Dropdown([], value='', label="Search Result", info="Art search results will be added here", interactive=True, filterable=False)
-    search_btn = gr.Button("Search")
-    search_to_meta = gr.Label(visible=False)
-    
-    with gr.Row(visible=True) as chatbot_page:
-        with gr.Column():
-            state = gr.State()
-            chatbot = gr.ChatInterface(
-                chat,
-                # examples=[
-                #     "How to eat healthy?",
-                #     "Best Places in Korea",
-                #     "How to make a chatbot?",
-                # ],
-                title="Solar Chatbot",
-                description="Upstage Solar Chatbot",
-                # additional_inputs=[search_dropdown, search_to_meta]
-            )
-            chatbot.chatbot.height = 300
-        with gr.Column():
-            art_image = gr.Image(value=None, label="Art Image")
-    
-    
-    search_btn.click(
-        fn=search_art, 
-        inputs=search_art_tb, 
-        outputs=[search_dropdown, search_to_meta]
-    )
-    
-    search_dropdown.change(fn=dropdown_change, inputs=[search_dropdown, search_to_meta], outputs=art_image)
+    return ehb_list
+
+def ehb_select(image):
+    print("ehb_select")
+    return
+
+
+css = """
+#image_block {background-color: #FFFFFF; align-items: center; width: 250px;}
+#image_block img {width: 250px; height: 250px; padding: 10px}
+#image_block .ehb_label {width: 250px; text-align: left; padding-left: 60px; font-size: 16px; font-weight: bold}
+"""
+
+with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
+    with gr.Tab("전시 검색"):
+        gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>전시 검색</h1>")
+        ehb_search_image = gr.Textbox(label="Query", info="전시회를 검색합니다.")
+        ehb_search_btn = gr.Button("Search")
+        # test_tb = gr.Textbox(label="Test")
+
+        ehb_list = []
+        with gr.Group():
+            with gr.Row():
+                for item in ehb_data:
+                    img_path = os.path.join(ehb_image_path, str(item['번호'])+".jpg")
+                    with gr.Column(elem_id="image_block", min_width=250):
+                        ehb_image = gr.Image(img_path, label=item["전시"], width=250, height=250, show_label=False, show_download_button=False, container=False)
+                        ehb_title = gr.Markdown(f"<div class='ehb_label'>{item['전시']}</div>")
+                        ehb_list.append(ehb_image)
+                        ehb_list.append(ehb_title)
+
+                        ehb_image.select(
+                            fn=ehb_select,
+                            inputs=ehb_image,
+                            outputs=[]
+                        )
+
+        ehb_search_btn.click(
+            fn=ehb_search, 
+            inputs=[ehb_search_image] + ehb_list, 
+            outputs=ehb_list
+        )
+
+
+    with gr.Tab("전체 작품 검색"):
+        gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>Search Art</h1>")
+        search_art_tb = gr.Textbox(label="Query", info="Input query for art searching")
+        search_dropdown = gr.Dropdown([], value='', label="Search Result", info="Art search results will be added here", interactive=True, filterable=False)
+        search_btn = gr.Button("Search")
+        search_to_meta = gr.Label(visible=False)
+        
+        with gr.Row(visible=True) as chatbot_page:
+            with gr.Column():
+                state = gr.State()
+                chatbot = gr.ChatInterface(
+                    chat,
+                    # examples=[
+                    #     "How to eat healthy?",
+                    #     "Best Places in Korea",
+                    #     "How to make a chatbot?",
+                    # ],
+                    title="Solar Chatbot",
+                    description="Upstage Solar Chatbot",
+                    # additional_inputs=[search_dropdown, search_to_meta]
+                )
+                chatbot.chatbot.height = 300
+            with gr.Column():
+                art_image = gr.Image(value=None, label="Art Image")
+        
+        
+        search_btn.click(
+            fn=search_art, 
+            inputs=search_art_tb, 
+            outputs=[search_dropdown, search_to_meta]
+        )
+        
+        search_dropdown.change(fn=dropdown_change, inputs=[search_dropdown, search_to_meta], outputs=art_image)
 
 demo.launch()
