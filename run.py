@@ -191,12 +191,8 @@ def chat(message, history, cur_art):
     for human, ai in history:
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
-    # breakpoint()
-    print(message)
-    output = tool_rag(message, history, cur_art)
-    print(output)
-    print("history\n", history_langchain_format)
 
+    output = tool_rag(message, history, cur_art)
     if output:
         generator = chain.stream({"message": output, "history": history_langchain_format})
     else:
