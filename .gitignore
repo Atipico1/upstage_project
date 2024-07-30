@@ -4,6 +4,7 @@
 .env
 
 __pycache__/*
+chroma_db/
 
 # data
 data/*
@@ -12,3 +13,4 @@ my_test_project/
 test.ipynb
 crawling.ipynb
 test.py
+
