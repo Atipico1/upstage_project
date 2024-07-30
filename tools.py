@@ -9,20 +9,26 @@ def similar_art_search(query: str) -> str:
     return "CALL SIMILAR ART"
 
 @tool
-def chat_with_explain(query: str) -> str:
-    """사용자의 작품에 대한 감상에 대해서 평가해줍니다. 사용자가 구체적으로 감상, 느낀 점에 대해 얘기를 하고 있을 때만 사용합니다.
+def qa_with_explain(query: str) -> str:
+    """주어진 미술 작품 정보를 기반으로 사용자의 질문에 답변합니다. 미술작품의 설명을 요구하거나 작품에 대한 구체적인 질문을 할 경우 호출합니다.
+    """
+    return "CALL QA"
+
+@tool
+def empathize_with_user(query: str) -> str:
+    """사용자가 작품에 대한 감상을 이야기하면 공감해주고 의견을 공유합니다. 사용자가 작품에 대한 감상을 공유하고자 할때 호출합니다.
     """
     return "CALL EXPLAIN"
 
 @tool
 def normal_chat(query: str) -> str:
-    """일반적인 대화를 수행합니다. 사용자가 미술 작품에 대한 검색을 요구하거나 감상을 제시하지 않았을 때 사용합니다.
+    """사용자가 미술 작품과 관련이 없는 이야기를 할 경우 평범하게 대화합니다.미술 작품과 관련이 없는 이야기를 하는 경우 호출합니다.
     """
     return "CALL NORMAL CHAT"
 
 @tool
 def wiki_search(query: str) -> str:
-    """유저가 검색결과를 찾고 있을 때 실행됩니다. 위키피디아에서 관련된 키워드 관련 페이지를 불러옵니다. 질문은 아트와 전시회 주제를 다루고 있습니다.
+    """미술 작품에 대한 정보를 위키피디아에서 검색하여 제공합니다. 사용자가 미술 작품에 대한 전문적인 정보를 상세하고 구체적으로 알고 싶어 하는 경우에 호출합니다.
     """
     from ast import literal_eval
     llm = ChatUpstage()

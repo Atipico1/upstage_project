@@ -10,13 +10,13 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema import AIMessage, HumanMessage
 from langchain_upstage import ChatUpstage
-from tools import similar_art_search, chat_with_explain, normal_chat, wiki_search
+from tools import similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 llm = ChatUpstage(streaming=True)
-tools = [similar_art_search, chat_with_explain, normal_chat, wiki_search]
+tools = [similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search]
 llm_with_tools = llm.bind_tools(tools)
 
 # 데이터 불러오기
@@ -58,6 +58,7 @@ def call_tool_func(tool_call, question):
     selected_tool = globals()[tool_name]
     print(tool_call)
 
+    # query를 제대로 생성하지 못해 발생하는 오류방지
     if "query" not in tool_call["args"]:
         tool_call["args"] = {"query": question}
         print("query is empty", tool_call)
@@ -71,10 +72,13 @@ def tool_rag(question, history, cur_art):
     context = ""
     for tool_call in tool_calls:
         tool_output = call_tool_func(tool_call, question)
+        print(tool_output)
         context, tool_name = tool_output
         context += str(context).strip()
         tool_name = str(tool_name)
     print(tool_name)
+
+    ## ==== similar_art_search ====
     if tool_name == "similar_art_search":
         # 비슷한 작품 검색
         docs = searching.search(f"{question}\n" + cur_art['art_description'], searching.retriever_art)
@@ -82,59 +86,108 @@ def tool_rag(question, history, cur_art):
         context = art_df[art_df["번호"]==docs[ran].metadata['index']]['작품 설명'].values[0]
         
         prompt = f"""
-        ## Role: 마술 작품 추천 전문가
-        
-        ## Instruction
-        - 사용자의 질문에 맞게 비슷한 작품을 소개해줘.
-        - 제시된 "비슷한 작품"을 기반으로 작품을 추천해줘.
-        - 이전 대화기록을 기반으로 추천하는 이유를 설명해줘.
-        ##
-        질문: {question}
-        
-        ##
-        비슷한 작품: {context}
-        """
-        return prompt
-    elif tool_name == "chat_with_explain":
-        prompt = f"""
-당신은 미술 작품에 대한 감상을 듣고 자신의 생각을 얘기한 뒤 평가해야 합니다. 당신은 주관적인 감상을 경청하고 공감해야합니다. 또한 제공된 평가 기준에 따라 나의 감상에 대한 구체적인 피드백을 제공합니다. 
-## 평가 기준:
-1. 진솔성과 솔직함: 자신의 감정과 생각을 솔직하게 표현하는가?
-2. 감정 표현의 풍부함: 다양한 감정을 풍부하게 표현하는가?
-3. 독창적인 관점: 작품에 대한 독창적인 시각과 해석을 제시하는가?
-4. 공감과 소통: 자신의 감상을 통해 다른 사람의 공감을 이끌어내는가?. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
----
-나의 감상: {question}\n
+## Role: 마술 작품 추천 전문가
+
+## Instruction
+- 사용자의 질문에 맞게 비슷한 작품을 소개해줘.
+- 제시된 "비슷한 작품"을 기반으로 작품을 추천해줘.
+- 이전 대화기록을 기반으로 추천하는 이유를 설명해줘.
+## 질문
+{question}
+
+## 비슷한 작품
+{context}
 """
         return prompt
+    
+    ##  ==== qa_with_explain ====
+    elif tool_name == "qa_with_explain":
+        prompt = f"""
+## Role: 미술 작품 전문 해설가
+
+## Instruction
+- 미술 작품 전문 해설가로서 주어진 미술 작품 정보를 읽고 상대방에게 질문에 답변합니다.
+- 작품에 대한 설명을 요구할 경우 전반적인 작품에 대한 정보를 알기 쉽게 풀어서 전달합니다.
+- 질문이 구체적인 경우 미술 작품의 정보를 참고해 간단하고 명료하게 대답합니다.
+- 친절하고 상냥하게 답변합니다.
+- 이전 대화기록을 참고하여 답변합니다.
+- 한국어로 답변합니다.
+
+## 질문
+{question}
+"""
+        return prompt
+    
+    ## ==== empathize_with_user ====
+    elif tool_name == "empathize_with_user":
+        prompt = f"""
+## Role: 미술 작품 감상에 공감해주는 친구
+
+## Instruction
+- 사용자의 미술 작품에 대한 감상에 공감하고 감정을 공유합니다.
+- 사용자의 감상에 관심을 보이고 더 깊은 공유를 위해 질문을 덧붙입니다.
+- 사용자의 감상이 실제 작품에 대한 설명과 일치할 경우 그 근거를 들어 칭찬합니다.
+- 친절하고 상냥하게 답변합니다.
+- 이전 대화기록을 참고하여 답변합니다.
+- 한국어로 답변합니다.
+
+## 사용자의 감상
+{question}
+"""
+
+        return prompt
+    
+    ## ==== normal_chat ====
     elif tool_name == "normal_chat":
         return None
+    
+    ## ==== wiki_search ====
     elif tool_name == "wiki_search":
-        prompt =f"""
-            당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다.
-            당신은 유저가 요청한 작품에 대해서 위키피디아에서 관련된 정보를 찾아서 알려주어야 합니다.
-            아래는 질문과 관련된 검색결과입니다. 검색 결과를 기반으로 친절하게 설명해주세요.
-            만약 위키피디아에서 정보를 가져오지 못했을 경우에는 검색에 실패하였다고 알려주세요.
-            ---
-            질문: {question}
-            ---
-            검색결과: {context}
-            """
+        prompt = f"""
+## Role: 미술 작품 검색기
+
+## Instruction
+- 미술 작품에 대한 정보를 위키피디아에서 검색하여 제공합니다.
+- 검색한 정보를 기반으로 미술 작품에 대해 설명합니다.
+- 만약 위키피디아에서 정보를 가져오지 못했을 경우에는 검색에 실패하였다고 알려주세요.
+- 이전 대화기록을 참고하여 답변합니다.
+- 한국어로 답변합니다.
+
+## 질문
+{question}
+
+## 검색결과
+{context}
+"""
         return prompt
 
 def chat(message, history, cur_art):
     cur_art = json.loads(cur_art)
-    description = cur_art['작품 설명']
+
+    basic_prompt =f"""
+## Role: 미술 작품 해설가
+
+## Instruction
+- 주어진 미술 작품 정보를 기반으로 사용자와 대화합니다.
+
+## 미술 작품 정보
+작가: {cur_art['작가']}
+작품명: {cur_art['작품명']}
+제작연도: {cur_art['제작연도']}
+작품 재료: {cur_art['재료']}
+작품 규격: {cur_art['규격']}
+작품 설명: {cur_art['작품 설명']}
+"""
 
     chat_with_history_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", f"당신은 미술 작품에 대한 해설사입니다. 당신의 역할은 미술 작품에 관심이 있는 상대방에게 미술에 관한 정보를 친절하게 설명해주고 알려주는 역할입니다. 모든 답변을 한국어로 해야합니다. 해당 작품에 대한 정보는 다음과 같습니다.\n\n작품 정보 : {description}"),
+        ("system", basic_prompt),
         MessagesPlaceholder(variable_name="history"),
         ("human", "{message}"),
     ]
     )
     chain = chat_with_history_prompt | llm | StrOutputParser()
-    history_langchain_format = []
+    history_langchain_format = [AIMessage(content=basic_prompt)]
     for human, ai in history:
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
