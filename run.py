@@ -50,12 +50,18 @@ def dropdown_change(item, search_dict):
     else:
         return None, None
 
-def call_tool_func(tool_call):
+def call_tool_func(tool_call, question):
     tool_name = tool_call["name"].lower()
     if tool_name not in globals():
         print("Tool not found", tool_name)
         return None
     selected_tool = globals()[tool_name]
+    print(tool_call)
+
+    if "query" not in tool_call["args"]:
+        tool_call["args"] = {"query": question}
+        print("query is empty", tool_call)
+
     return selected_tool.invoke(tool_call["args"]), tool_name
 
 def tool_rag(question, history, cur_art):
@@ -64,7 +70,7 @@ def tool_rag(question, history, cur_art):
         return None, None
     context = ""
     for tool_call in tool_calls:
-        tool_output = call_tool_func(tool_call)
+        tool_output = call_tool_func(tool_call, question)
         context, tool_name = tool_output
         context += str(context).strip()
         tool_name = str(tool_name)
@@ -133,7 +139,11 @@ def chat(message, history, cur_art):
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
     # breakpoint()
+    print(message)
     output = tool_rag(message, history, cur_art)
+    print(output)
+    print("history\n", history_langchain_format)
+
     if output:
         generator = chain.stream({"message": output, "history": history_langchain_format})
     else:
@@ -214,7 +224,6 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
         ehb_list = []
         with gr.Group():
             with gr.Row():
-                print("create images")
                 for item in ehb_data:
                     img_path = os.path.join(ehb_image_path, str(item['번호'])+".jpg")
                     with gr.Column(elem_id="ehb_image", min_width=250):
