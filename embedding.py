@@ -20,7 +20,7 @@ class Search():
             vectorstore_art = Chroma(persist_directory="./chroma_db", 
                                 collection_name="art_index",
                                 embedding_function=UpstageEmbeddings(model="solar-embedding-1-large"))
-            self.retriever_art = vectorstore_art.as_retriever(search_kwargs={'k': 5})
+            self.retriever_art = vectorstore_art.as_retriever(search_kwargs={'k': 4})
 
         else:
             print("Embedding Docs")
