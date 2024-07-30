@@ -14,12 +14,13 @@ class Search():
             vectorstore_full = Chroma(persist_directory="./chroma_db", 
                                 collection_name="full_art_index",
                                 embedding_function=UpstageEmbeddings(model="solar-embedding-1-large"))
-            self.retriever_full = vectorstore_full.as_retriever()
-            
+    
+            self.retriever_full = vectorstore_full.as_retriever(search_kwargs={'k': 6})
+
             vectorstore_art = Chroma(persist_directory="./chroma_db", 
                                 collection_name="art_index",
                                 embedding_function=UpstageEmbeddings(model="solar-embedding-1-large"))
-            self.retriever_art = vectorstore_art.as_retriever()
+            self.retriever_art = vectorstore_art.as_retriever(search_kwargs={'k': 5})
 
         else:
             print("Embedding Docs")
