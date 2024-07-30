@@ -132,6 +132,7 @@ def chat(message, history, cur_art):
     for human, ai in history:
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
+    # breakpoint()
     output = tool_rag(message, history, cur_art)
     if output:
         generator = chain.stream({"message": output, "history": history_langchain_format})
@@ -188,9 +189,11 @@ def ehb_art_on_select(value, cur_ehb, evt: gr.SelectData):
     return sel_art.to_json(force_ascii=False), gr.Image(img_path), gr.update(visible=True)
 
 css = """
-#image_block {background-color: #FFFFFF; align-items: center; width: 250px;}
-#image_block img {width: 300px; height: 300px; padding: 10px}
-#image_block .ehb_label {width: 250px; text-align: left; padding-left: 45px; font-size: 18px; font-weight: bold}
+#ehb_image {background-color: #FFFFFF; align-items: center; width: 250px;}
+#ehb_image img {width: 300px; height: 300px; padding: 10px}
+#ehb_image .ehb_label {width: 250px; text-align: left; padding-left: 45px; font-size: 18px; font-weight: bold}
+#chat_img img {width: 600px; height: 600px; align-items: center;}
+#chat_img Column {align-items: center;}
 """
 
 with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
@@ -214,7 +217,7 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
                 print("create images")
                 for item in ehb_data:
                     img_path = os.path.join(ehb_image_path, str(item['번호'])+".jpg")
-                    with gr.Column(elem_id="image_block", min_width=250):
+                    with gr.Column(elem_id="ehb_image", min_width=250):
                         ehb_image = gr.Image(img_path, label=item["전시"], width=300, height=300, show_label=False, show_download_button=False, container=False, interactive=False)
                         ehb_title = gr.Markdown(f"<div class='ehb_label'>{item['전시']}</div>")
                         ehb_list.append(ehb_image)
@@ -228,7 +231,7 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
 
         # 챗봇
         with gr.Row(visible=False) as chatbot_ehb:
-            with gr.Column():
+            with gr.Column(scale=1.2):
                 state = gr.State()
                 chatbot = gr.ChatInterface(
                     chat,
@@ -242,9 +245,9 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
                     description="Upstage Solar Chatbot",
                     autofocus=False
                 )
-                chatbot.chatbot.height = 300
+                chatbot.chatbot.height = 600
             with gr.Column():
-                art_image = gr.Image(value=None, label="Art Image")
+                art_image = gr.Image(value=None, label="Art Image", scale=1)
 
         
         ehb_search_btn.click(
@@ -277,7 +280,7 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
         cur_search_art_tb = gr.Textbox(label="search_art_tb" , visible=False)
         
         with gr.Row() as chatbot_art:
-            with gr.Column():
+            with gr.Column(scale=1):
                 state = gr.State()
                 chatbot = gr.ChatInterface(
                     chat,
@@ -291,8 +294,8 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
                     description="Upstage Solar Chatbot",
                     autofocus=False
                 )
-                chatbot.chatbot.height = 300
-            with gr.Column():
+                chatbot.chatbot.height = 600
+            with gr.Column(scale=1):
                 art_image = gr.Image(value=None, label="Art Image")
         
         search_btn.click(
