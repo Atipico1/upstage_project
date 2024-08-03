@@ -28,7 +28,7 @@ class Search():
             self.retriever_full = self.art_embedding("full_art_index", art_df, art_df['작품 설명'].tolist()) 
             
             # 작품 설명 임베딩
-            self.retriever_art = self.art_embedding("art_index", art_df, art_df['art_description'].tolist())
+            self.retriever_art = self.art_embedding("art_index", art_df, art_df['작품 설명'].tolist())
         
         # 작품 설명 임베딩
         self.retriever_ehb = self.ehb_embedding(ehb_df)
