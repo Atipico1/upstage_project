@@ -5,18 +5,18 @@ import json
 import os
 import random
 from dotenv import load_dotenv
-
+from PIL import Image, ImageOps
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema import AIMessage, HumanMessage
 from langchain_upstage import ChatUpstage
-from tools import similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search
+from tools import similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search, archiving
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 llm = ChatUpstage(streaming=True)
-tools = [similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search]
+tools = [similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search, archiving]
 llm_with_tools = llm.bind_tools(tools)
 
 # 데이터 불러오기
@@ -106,12 +106,13 @@ def tool_rag(question, history, cur_art):
 ## Role: 미술 작품 전문 해설가
 
 ## Instruction
-- 미술 작품 전문 해설가로서 주어진 미술 작품 정보를 읽고 상대방에게 질문에 답변합니다.
+- 미술 작품 전문 해설가로서 주어진 ## 미술 작품 정보 ## 를 읽고 상대방에게 질문에 답변합니다.
 - 작품에 대한 설명을 요구할 경우 전반적인 작품에 대한 정보를 알기 쉽게 풀어서 전달합니다.
 - 질문이 구체적인 경우 미술 작품의 정보를 참고해 간단하고 명료하게 대답합니다.
 - 친절하고 상냥하게 답변합니다.
 - 이전 대화기록을 참고하여 답변합니다.
 - 한국어로 답변합니다.
+- {cur_art['작품명']}에 대한 정보를 바탕으로 답변해야 합니다.
 
 ## 질문
 {question}
@@ -127,7 +128,7 @@ def tool_rag(question, history, cur_art):
 - 사용자의 미술 작품에 대한 감상에 공감하고 감정을 공유합니다.
 - 사용자의 감상에 관심을 보이고 더 깊은 공유를 위해 질문을 덧붙입니다.
 - 사용자의 감상이 실제 작품에 대한 설명과 일치할 경우 그 근거를 들어 칭찬합니다.
-- 친절하고 상냥하게 답변합니다.
+- 친절하고 상냥하게 답변하되, 안녕하세요, 감사합니다, 물론이죠와 같은 인사말은 사용하지 않습니다.
 - 이전 대화기록을 참고하여 답변합니다.
 - 한국어로 답변합니다.
 
@@ -158,6 +159,30 @@ def tool_rag(question, history, cur_art):
 
 ## 검색결과
 {context}
+"""
+        return prompt
+    
+    elif tool_name == "archiving":
+        prompt = f"""
+## Role: 전시회 후기 작성
+
+## Instruction
+- 사용자와 나눈 대화를 SNS에 공유하기 위한 전시회 관람 후기 형태로 작성합니다.
+- 관람 후기는 1인칭으로 작성되어야 하며 아래와 같은 형식으로 작성합니다
+    1. 작품명
+    2. 설명
+    3. 감상 (사용자의 감상을 그대로 사용하되 첫글자는 감정을 이모티콘으로 표현)
+- 사용자의 특별한 요청이 있다면 그에 맞게 작성합니다.
+- 여러 개의 작품에 대한 감상이 있을 경우, 각 작품에 대한 감상을 모두 포함하여 작성하고, 작품 간 줄바꿈을 활용하여 구분합니다.
+- 후기는 SNS에 올릴 수 있도록 간결하게 작성하고, "~했음"과 같은 말투를 사용해야 합니다.
+- 마크다운 문법을 사용하면 안되고 Plain text만 사용해야 합니다.
+- 이모티콘으로 대체가 가능한 텍스트는 이모티콘을 적극적으로 사용해야 하고 적절한 줄바꿈과 글머리 기호가 사용되어야 합니다.
+- 마지막에는 전시회에 대한 전반적인 감상을 "한줄평:"에 1~2줄로 요약합니다.
+
+## 사용자의 요청
+{question}
+
+## 전시회 후기:
 """
         return prompt
 
@@ -191,7 +216,6 @@ def chat(message, history, cur_art):
     for human, ai in history:
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
-
     output = tool_rag(message, history, cur_art)
     if output:
         generator = chain.stream({"message": output, "history": history_langchain_format})
@@ -255,13 +279,13 @@ css = """
 #chat_img Column {align-items: center;}
 """
 
-with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
+with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
     # 전시회 검색 UI
     with gr.Tab("전시 검색"):
         gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>전시 검색</h1>")
-        ehb_search_tb = gr.Textbox(label="Query", info="전시회를 검색합니다.")
+        ehb_search_tb = gr.Textbox(label="전시회 검색", info="전시회 이름을 입력해주세요.")
         ehb_search_btn = gr.Button("Search")
-
+        
         # 전시검색 결과 초기화
         result = ehb_df.drop(columns="이미지")
         result.columns = ['index', 'title', 'art_list']
@@ -280,12 +304,13 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
                         ehb_title = gr.Markdown(f"<div class='ehb_label'>{item['전시']}</div>")
                         ehb_list.append(ehb_image)
                         ehb_list.append(ehb_title)
-
+                        
         # 선택한 전시회 작품들
         gr.Markdown("<h2 style='text-align: left; margin-bottom: 1rem'>전시 작품</h2>")
-        ebh_art_gallery = gr.Gallery([], columns=6, height= 250, min_width=250, allow_preview=False, interactive=False)
+        ebh_art_gallery = gr.Gallery([], columns=6, height= 250, min_width=250, allow_preview=False, show_download_button=False, interactive=False)
         cur_ehb_tb = gr.Textbox(label="cur_ehb_tb" , visible=False)
         cur_art_tb = gr.Textbox(label="cur_art_tb" , visible=False)
+        
 
         # 챗봇
         with gr.Row(visible=False) as chatbot_ehb:
@@ -299,13 +324,13 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
                     #     "How to make a chatbot?",
                     # ],
                     additional_inputs=[cur_art_tb],
-                    title="Solar Chatbot",
-                    description="Upstage Solar Chatbot",
+                    title="AI Docent",
+                    description="작품에 대해 궁금한게 있다면 말씀해주세요!",
                     autofocus=False
                 )
                 chatbot.chatbot.height = 600
             with gr.Column():
-                art_image = gr.Image(value=None, label="Art Image", scale=1)
+                art_image = gr.Image(value=None, label="작품 이미지", scale=1)
 
         
         ehb_search_btn.click(
