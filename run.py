@@ -130,7 +130,6 @@ def tool_rag(question, history, cur_art):
 - 작품에 대한 설명을 요구할 경우 전반적인 작품에 대한 정보를 알기 쉽게 풀어서 전달합니다.
 - 질문이 구체적인 경우 미술 작품의 정보를 참고해 간단하고 명료하게 대답합니다.
 - history를 참고하여 답변합니다.
-- 구체적인 작품을 언급하지 않은 경우 "현재 미술 작품 정보"를 기반으로 답변합니다.
 - 친절하고 상냥하게 답변합니다.
 - 한국어로 답변합니다.
 - {cur_art['작품명']}에 대한 정보를 바탕으로 답변해야 합니다.
@@ -265,8 +264,9 @@ def chat(history, cur_art):
 
     for gen in generator:
         history[-1][1] += gen
-        # assistant += gen
         yield  history, ""
+
+    breakpoint()
 
     # 마지막에 비슷한 작품 정보 저장용
     if output and output['tool_name'] == "similar_art_search":
@@ -380,6 +380,9 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
         # ChatBot
         with gr.Row(visible=False) as chatbot_ehb:
             with gr.Column(scale=1.2):
+                gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>AI Docent</h1>")
+                gr.Markdown("<p style='text-align: center; font-size: 14px; margin-bottom: 1rem'>작품에 대해 궁금한게 있다면 말씀해주세요!</p>")
+
                 custom_chatbot  = gr.Chatbot(height=600)
                 msg = gr.Textbox()
                 sim_art_tb = gr.Textbox(label="sim_art_tb", visible=False)
@@ -430,8 +433,8 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
 
     with gr.Tab("전체 작품 검색"):
         gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>전체 작품 검색</h1>")
-        search_art_tb = gr.Textbox(label="Query", info="작품에 대한 정보를 입력해주세요.")
-        search_dropdown = gr.Dropdown([], value='', label="Search Result", info="Art search results will be added here", interactive=True, filterable=False)
+        search_art_tb = gr.Textbox(label="검색", info="작품에 대한 정보를 입력해주세요.")
+        search_dropdown = gr.Dropdown([], value='', label="검색 결과", info="클릭해서 검색 결과를 확인해주세요.", interactive=True, filterable=False)
         search_btn = gr.Button("Search")
         search_to_meta = gr.Label(visible=False)
         cur_search_art_tb = gr.Textbox(label="search_art_tb" , visible=False)
@@ -439,6 +442,9 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
         # ChatBot
         with gr.Row() as art_chatbot:
             with gr.Column(scale=1.2):
+                gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>AI Docent</h1>")
+                gr.Markdown("<p style='text-align: center; font-size: 14px; margin-bottom: 1rem'>작품에 대해 궁금한게 있다면 말씀해주세요!</p>")
+                
                 custom_art_chatbot  = gr.Chatbot(height=600)
                 msg = gr.Textbox()
                 sim_art_tb = gr.Textbox(label="sim_art_tb", visible=False)
@@ -454,26 +460,8 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
             with gr.Column():
                 art_image = gr.Image(value=None, label="작품 이미지", scale=1)
 
-        
-        
-        # with gr.Row() as chatbot_art:
-        #     with gr.Column(scale=1):
-        #         # state = gr.State()
-        #         chatbot = gr.ChatInterface(
-        #             chat,
-        #             # examples=[
-        #             #     "How to eat healthy?",
-        #             #     "Best Places in Korea",
-        #             #     "How to make a chatbot?",
-        #             # ],
-        #             additional_inputs=[cur_search_art_tb],
-        #             title="Solar Chatbot",
-        #             description="Upstage Solar Chatbot",
-        #             autofocus=False
-        #         )
-        #         chatbot.chatbot.height = 600
-        #     with gr.Column(scale=1):
-        #         art_image = gr.Image(value=None, label="Art Image")
+
+        search_art_tb.submit(search_art, [search_art_tb], [search_dropdown, search_to_meta], queue=False)
         
         search_btn.click(
             fn=search_art, 
@@ -489,7 +477,7 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
         change_art_to_sim_btn.click(
             fn=change_art_to_sim,
             inputs=[sim_art_tb],
-            outputs=[cur_art_tb, art_image, sim_art_tb], 
+            outputs=[cur_search_art_tb, art_image, sim_art_tb], 
         )
 
         sim_art_tb.change(
