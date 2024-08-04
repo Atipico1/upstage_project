@@ -54,3 +54,9 @@ def wiki_search(query: str) -> str:
         return "위키피디아 검색에 실패하였습니다."
     else:
         return summary[:2000]
+
+@tool
+def archiving(query: str) -> str:
+    """사용자와 나눈 대화를 저장합니다. 사용자가 대화를 저장해서 SNS 등에 공유하고 싶어하는 경우에 호출합니다.
+    """
+    return "CALL ARCHIVING"
