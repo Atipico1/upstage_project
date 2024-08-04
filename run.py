@@ -4,6 +4,9 @@ import embedding
 import json
 import os
 import random
+import base64
+import re
+from PIL import Image
 from dotenv import load_dotenv
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -27,8 +30,15 @@ ehb_data = ehb_df.to_json(force_ascii=False, orient="records")
 ehb_data = json.loads(ehb_data)
 ehb_image_path = "data/ehb_images"
 
+similar_art = None
+
 # DB 및 Retrieval 불러오기
 searching = embedding.Search(art_df, ehb_df)
+
+def convert_base64(image_path):
+    with open(image_path, "rb") as image_file:
+        image_base64 = base64.b64encode(image_file.read()).decode("utf-8")
+    return image_base64
 
 def search_art(query):
     results = searching.search(query, searching.retriever_full)
@@ -66,9 +76,10 @@ def call_tool_func(tool_call, question):
     return selected_tool.invoke(tool_call["args"]), tool_name
 
 def tool_rag(question, history, cur_art):
+    output = {}
     tool_calls = llm_with_tools.invoke(question).tool_calls
     if not tool_calls:
-        return None, None
+        return None
     context = ""
     for tool_call in tool_calls:
         tool_output = call_tool_func(tool_call, question)
@@ -77,28 +88,37 @@ def tool_rag(question, history, cur_art):
         context += str(context).strip()
         tool_name = str(tool_name)
     print(tool_name)
+    output['tool_name'] = tool_name
 
     ## ==== similar_art_search ====
     if tool_name == "similar_art_search":
         # 비슷한 작품 검색
         docs = searching.search(f"{question}\n" + cur_art['art_description'], searching.retriever_art)
         ran = random.randint(1, len(docs)-1)
-        context = art_df[art_df["번호"]==docs[ran].metadata['index']]['작품 설명'].values[0]
+        sim_art = art_df[art_df["번호"]==docs[ran].metadata['index']].iloc[0]
         
         prompt = f"""
 ## Role: 마술 작품 추천 전문가
 
 ## Instruction
-- 사용자의 질문에 맞게 비슷한 작품을 소개해줘.
-- 제시된 "비슷한 작품"을 기반으로 작품을 추천해줘.
-- 이전 대화기록을 기반으로 추천하는 이유를 설명해줘.
+- 사용자의 현재 미술 작품과 비슷한 작품을 소개해줘.
+- 제시된 "이전 미술 작품"과 "비슷한 작품"을 기반으로 작품을 추천해줘.
+- "이전 미술 작품"과 "비슷한 작품"을 서로 연관지어서 설명해주고 추천하는 이유도 설명해줘.
+- 주어진 정보를 그대로 읽지말고 잘 정리해서 답변해줘.
+
 ## 질문
 {question}
 
 ## 비슷한 작품
-{context}
-"""
-        return prompt
+작가: {sim_art['작가']}
+작품명: {sim_art['작품명']}
+제작연도: {sim_art['제작연도']}
+작품 재료: {sim_art['재료']}
+작품 설명: {sim_art['작품 설명']}
+"""     
+        output['prompt'] = prompt
+        output['sim_art'] = sim_art
+        return output
     
     ##  ==== qa_with_explain ====
     elif tool_name == "qa_with_explain":
@@ -106,17 +126,19 @@ def tool_rag(question, history, cur_art):
 ## Role: 미술 작품 전문 해설가
 
 ## Instruction
-- 미술 작품 전문 해설가로서 주어진 미술 작품 정보를 읽고 상대방에게 질문에 답변합니다.
+- 미술 작품 전문 해설가로서 "현재 미술 작품 정보"를 읽고 상대방에게 질문에 답변합니다.
 - 작품에 대한 설명을 요구할 경우 전반적인 작품에 대한 정보를 알기 쉽게 풀어서 전달합니다.
 - 질문이 구체적인 경우 미술 작품의 정보를 참고해 간단하고 명료하게 대답합니다.
+- history를 참고하여 답변합니다.
+- 구체적인 작품을 언급하지 않은 경우 "현재 미술 작품 정보"를 기반으로 답변합니다.
 - 친절하고 상냥하게 답변합니다.
-- 이전 대화기록을 참고하여 답변합니다.
 - 한국어로 답변합니다.
 
 ## 질문
 {question}
 """
-        return prompt
+        output['prompt'] = prompt
+        return output
     
     ## ==== empathize_with_user ====
     elif tool_name == "empathize_with_user":
@@ -134,8 +156,8 @@ def tool_rag(question, history, cur_art):
 ## 사용자의 감상
 {question}
 """
-
-        return prompt
+        output['prompt'] = prompt
+        return output
     
     ## ==== normal_chat ====
     elif tool_name == "normal_chat":
@@ -158,19 +180,25 @@ def tool_rag(question, history, cur_art):
 
 ## 검색결과
 {context}
-"""
-        return prompt
+"""     
+        output['prompt'] = prompt
+        return output
 
-def chat(message, history, cur_art):
+def user(user_message, history, cur_art):
+    return "", history + [[user_message, None]], cur_art
+
+def chat(history, cur_art):
+    message = history[-1][0]
+    history[-1][1] = ""
     cur_art = json.loads(cur_art)
-
+    
     basic_prompt =f"""
 ## Role: 미술 작품 해설가
 
 ## Instruction
 - 주어진 미술 작품 정보를 기반으로 사용자와 대화합니다.
 
-## 미술 작품 정보
+## 현재 미술 작품 정보
 작가: {cur_art['작가']}
 작품명: {cur_art['작품명']}
 제작연도: {cur_art['제작연도']}
@@ -178,7 +206,6 @@ def chat(message, history, cur_art):
 작품 규격: {cur_art['규격']}
 작품 설명: {cur_art['작품 설명']}
 """
-
     chat_with_history_prompt = ChatPromptTemplate.from_messages(
     [
         ("system", basic_prompt),
@@ -189,18 +216,44 @@ def chat(message, history, cur_art):
     chain = chat_with_history_prompt | llm | StrOutputParser()
     history_langchain_format = [AIMessage(content=basic_prompt)]
     for human, ai in history:
+        ai = re.sub("^<.+>", "", ai)
         history_langchain_format.append(HumanMessage(content=human))
         history_langchain_format.append(AIMessage(content=ai))
 
     output = tool_rag(message, history, cur_art)
+
+    # similar_art_search가 호출될 경우 이미지를 띄워줌
+    if output and output['tool_name'] == "similar_art_search":
+        sim_art = output['sim_art'].to_dict()
+        image_path = f"data/art_images/{str(sim_art['번호'])}.jpg"
+        image_base64 = convert_base64(image_path) 
+        image_html = f"<img src='data:image/jpeg;base64,{image_base64}' width='400' height='400' /><br>"
+
+        history[-1][1] += image_html
+        yield history, ""
+
     if output:
-        generator = chain.stream({"message": output, "history": history_langchain_format})
+        generator = chain.stream({"message": output['prompt'], "history": history_langchain_format})
+        
     else:
         generator = chain.stream({"message": message, "history": history_langchain_format})
-    assistant = ""
+
     for gen in generator:
-        assistant += gen
-        yield assistant
+        history[-1][1] += gen
+        # assistant += gen
+        yield  history, ""
+
+    breakpoint()
+
+    # 마지막에 비슷한 작품 정보 저장용
+    if output and output['tool_name'] == "similar_art_search":
+        yield history, json.dumps(sim_art, ensure_ascii=False)
+
+
+def respond(message, chat_history):
+    bot_message = random.choice(["How are you?", "I love you", "I'm very hungry"])
+    chat_history.append((message, bot_message))
+    return "", chat_history
 
 # 전시 검색
 def ehb_search(query, *images):
@@ -247,6 +300,14 @@ def ehb_art_on_select(value, cur_ehb, evt: gr.SelectData):
 
     return sel_art.to_json(force_ascii=False), gr.Image(img_path), gr.update(visible=True)
 
+def change_art_to_sim(sim_art):
+    if sim_art:
+        sim_art = json.loads(sim_art)
+        img_path = os.path.join("data/art_images", str(sim_art['번호']) + ".jpg")
+        return json.dumps(sim_art, ensure_ascii=False), gr.Image(img_path), None
+    else:
+        return None, None, None
+
 css = """
 #ehb_image {background-color: #FFFFFF; align-items: center; width: 250px;}
 #ehb_image img {width: 300px; height: 300px; padding: 10px}
@@ -284,26 +345,24 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
         # 선택한 전시회 작품들
         gr.Markdown("<h2 style='text-align: left; margin-bottom: 1rem'>전시 작품</h2>")
         ebh_art_gallery = gr.Gallery([], columns=6, height= 250, min_width=250, allow_preview=False, interactive=False)
-        cur_ehb_tb = gr.Textbox(label="cur_ehb_tb" , visible=False)
-        cur_art_tb = gr.Textbox(label="cur_art_tb" , visible=False)
+        cur_ehb_tb = gr.Textbox(label="cur_ehb_tb" , visible=True)
+        cur_art_tb = gr.Textbox(label="cur_art_tb" , visible=True)
 
-        # 챗봇
-        with gr.Row(visible=False) as chatbot_ehb:
+        # ChatBot
+        with gr.Row(visible=True) as chatbot_ehb:
             with gr.Column(scale=1.2):
-                state = gr.State()
-                chatbot = gr.ChatInterface(
-                    chat,
-                    # examples=[
-                    #     "How to eat healthy?",
-                    #     "Best Places in Korea",
-                    #     "How to make a chatbot?",
-                    # ],
-                    additional_inputs=[cur_art_tb],
-                    title="Solar Chatbot",
-                    description="Upstage Solar Chatbot",
-                    autofocus=False
-                )
-                chatbot.chatbot.height = 600
+                custom_chatbot  = gr.Chatbot(height=600)
+                msg = gr.Textbox()
+                sim_art_tb = gr.Textbox(label="sim_art_tb", visible=True)
+
+                with gr.Row(visible=True):
+                    change_art_to_sim_btn = gr.Button("QA Similar Art", interactive=False)
+                    clear = gr.ClearButton([msg, custom_chatbot])
+
+                msg.submit(user, [msg, custom_chatbot, cur_art_tb], [msg, custom_chatbot], queue=False).then(
+                    chat, [custom_chatbot, cur_art_tb], [custom_chatbot, sim_art_tb])
+                clear.click(lambda: [None, None], None, [custom_chatbot, sim_art_tb], queue=False)
+
             with gr.Column():
                 art_image = gr.Image(value=None, label="Art Image", scale=1)
 
@@ -327,6 +386,23 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
             outputs=[cur_art_tb, art_image, chatbot_ehb], 
             trigger_mode="once"
         )
+
+        change_art_to_sim_btn.click(
+            fn=change_art_to_sim,
+            inputs=[sim_art_tb],
+            outputs=[cur_art_tb, art_image, sim_art_tb], 
+        )
+
+        def sim_art_change(evt: gr.EventData):
+            if evt._data != "":
+                return gr.update(interactive=True)
+            else:
+                return gr.update(interactive=False)
+
+        sim_art_tb.change(
+            fn=sim_art_change,
+            outputs=[change_art_to_sim_btn]
+        )
         
 
     with gr.Tab("전체 작품 검색"):
@@ -339,7 +415,7 @@ with gr.Blocks(title="AI Docent Chatbot", css=css) as demo:
         
         with gr.Row() as chatbot_art:
             with gr.Column(scale=1):
-                state = gr.State()
+                # state = gr.State()
                 chatbot = gr.ChatInterface(
                     chat,
                     # examples=[

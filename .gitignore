@@ -7,10 +7,11 @@ __pycache__/*
 chroma_db/
 
 # data
-data/*
+# data/*
 
+multimodalchatbot/*
 my_test_project/
 test.ipynb
 crawling.ipynb
 test.py
-
+test/*
