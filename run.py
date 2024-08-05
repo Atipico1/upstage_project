@@ -102,7 +102,10 @@ def tool_rag(question, history, cur_art):
 - 사용자의 현재 미술 작품과 비슷한 작품을 소개해줘.
 - 제시된 "이전 미술 작품"과 "비슷한 작품"을 기반으로 작품을 추천해줘.
 - "이전 미술 작품"과 "비슷한 작품"을 서로 연관지어서 설명해주고 추천하는 이유도 설명해줘.
-- 주어진 정보를 그대로 읽지말고 잘 정리해서 답변해줘.
+- 아래 형식에 맞춰 답변해줘.
+    - 유사 작품 설명
+    - 비슷한 이유 설명
+    - 결론 및 요약
 
 ## 질문
 {question}
@@ -113,6 +116,8 @@ def tool_rag(question, history, cur_art):
 제작연도: {sim_art['제작연도']}
 작품 재료: {sim_art['재료']}
 작품 설명: {sim_art['작품 설명']}
+
+
 """     
         output['prompt'] = prompt
         output['sim_art'] = sim_art
@@ -369,7 +374,7 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
         cur_art_tb = gr.Textbox(label="cur_art_tb" , visible=False)
 
         # ChatBot
-        with gr.Row(visible=False) as chatbot_ehb:
+        with gr.Row(visible=True) as chatbot_ehb:
             with gr.Column(scale=1.2):
                 gr.Markdown("<h1 style='text-align: center; margin-bottom: 1rem'>AI Docent</h1>")
                 gr.Markdown("<p style='text-align: center; font-size: 14px; margin-bottom: 1rem'>작품에 대해 궁금한게 있다면 말씀해주세요!</p>")
