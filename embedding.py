@@ -25,15 +25,15 @@ class Search():
         else:
             print("Embedding Docs")
             # 작가와 작품설명 임베딩
-            self.retriever_full = self.art_embedding("full_art_index", art_df, art_df['작품 설명'].tolist()) 
+            self.retriever_full = self.art_embedding("full_art_index", art_df, art_df['작품 설명'].tolist(), topk=6) 
             
             # 작품 설명 임베딩
-            self.retriever_art = self.art_embedding("art_index", art_df, art_df['작품 설명'].tolist())
+            self.retriever_art = self.art_embedding("art_index", art_df, art_df['작품 설명'].tolist(), topk=4)
         
         # 작품 설명 임베딩
         self.retriever_ehb = self.ehb_embedding(ehb_df)
         
-    def art_embedding(self, collection_name, df, collection):
+    def art_embedding(self, collection_name, df, collection, topk):
         art_descriptions = collection
         indexs = df['번호'].tolist()
         titles = df['작품명'].tolist()
@@ -54,7 +54,7 @@ class Search():
             collection_name=collection_name,
             persist_directory="./chroma_db"
         )
-        retriever = vectorstore.as_retriever()
+        retriever = vectorstore.as_retriever(search_kwargs={'k': topk})
         
         return retriever
     

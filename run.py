@@ -6,15 +6,13 @@ import os
 import random
 import base64
 import re
-from PIL import Image
+
 from dotenv import load_dotenv
-from PIL import Image, ImageOps
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema import AIMessage, HumanMessage
 from langchain_upstage import ChatUpstage
 from tools import similar_art_search, qa_with_explain, empathize_with_user, normal_chat, wiki_search, archiving
-from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
@@ -266,17 +264,9 @@ def chat(history, cur_art):
         history[-1][1] += gen
         yield  history, ""
 
-    breakpoint()
-
     # 마지막에 비슷한 작품 정보 저장용
     if output and output['tool_name'] == "similar_art_search":
         yield history, json.dumps(sim_art, ensure_ascii=False)
-
-
-def respond(message, chat_history):
-    bot_message = random.choice(["How are you?", "I love you", "I'm very hungry"])
-    chat_history.append((message, bot_message))
-    return "", chat_history
 
 # 전시 검색
 def ehb_search(query, *images):
@@ -307,11 +297,12 @@ def ehb_select(value, result, evt: gr.EventData):
     sel_ehb = result[int(index)-1]
     indice = eval(sel_ehb['art_list'])
     ehb_arts = art_df[art_df['번호'].isin(indice)]
+    ehb_arts = ehb_arts.set_index('번호').reindex(indice).reset_index()
 
     ehb_arts_img_paths = tuple(map(lambda x: os.path.join("data/art_images", str(x)+".jpg"), indice))
     gal_imgs = list(zip(ehb_arts_img_paths, ehb_arts['작품명']))
 
-    return gr.Gallery(gal_imgs, columns=6, height= 250, min_width=250, allow_preview=False, interactive=False), json.dumps(sel_ehb, ensure_ascii=False)
+    return gr.Gallery(gal_imgs, columns=6, height=300, min_width=300, allow_preview=False, interactive=False), json.dumps(sel_ehb, ensure_ascii=False)
 
 # 전시회 작품 선택
 def ehb_art_on_select(value, cur_ehb, evt: gr.SelectData):
@@ -373,7 +364,7 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
                         
         # 선택한 전시회 작품들
         gr.Markdown("<h2 style='text-align: left; margin-bottom: 1rem'>전시 작품</h2>")
-        ebh_art_gallery = gr.Gallery([], columns=6, height= 250, min_width=250, allow_preview=False, interactive=False)
+        ebh_art_gallery = gr.Gallery([], columns=6, height= 300, min_width=300, allow_preview=False, interactive=False)
         cur_ehb_tb = gr.Textbox(label="cur_ehb_tb" , visible=False)
         cur_art_tb = gr.Textbox(label="cur_art_tb" , visible=False)
 
