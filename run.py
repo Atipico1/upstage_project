@@ -317,13 +317,13 @@ def ehb_art_on_select(value, cur_ehb, evt: gr.SelectData):
     sel_art = art_df[art_df["번호"] == art_idx].iloc[0]
     img_path = os.path.join("data/art_images", str(sel_art['번호']) + ".jpg")
 
-    return sel_art.to_json(force_ascii=False), gr.Image(img_path), gr.update(visible=True)
+    return sel_art.to_json(force_ascii=False), gr.Image(img_path, label=sel_art['작품명']), gr.update(visible=True)
 
 def change_art_to_sim(sim_art):
     if sim_art:
         sim_art = json.loads(sim_art)
         img_path = os.path.join("data/art_images", str(sim_art['번호']) + ".jpg")
-        return json.dumps(sim_art, ensure_ascii=False), gr.Image(img_path), None
+        return json.dumps(sim_art, ensure_ascii=False), gr.Image(img_path, label=sim_art['작품명']), None
     else:
         return None, None, None
     
