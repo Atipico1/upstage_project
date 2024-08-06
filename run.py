@@ -394,7 +394,12 @@ with gr.Blocks(title="DocentAI", css=css, theme=gr.themes.Soft()) as demo:
             with gr.Column():
                 art_image = gr.Image(value=None, label="작품 이미지", scale=1)
 
-        
+        ehb_search_tb.submit(
+            ehb_search, 
+            inputs=[ehb_search_tb] + ehb_list, 
+            outputs= [ehb_search_result, *ehb_list]
+            )
+
         ehb_search_btn.click(
             fn=ehb_search, 
             inputs=[ehb_search_tb] + ehb_list, 
